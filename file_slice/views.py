@@ -1,11 +1,9 @@
 import shutil
-
+import json
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.http import HttpResponse
 import os
-
-import json
 
 FILE_PATH = './file_slice/file'
 HTTP_400 = HttpResponse({
@@ -45,10 +43,11 @@ def get_path_chunks(path):
 
 # get_chunks_info 获取该文件上传情况
 # params
-#   file_hash 文件哈希
-#   name 文件名
+#   file_hash 文件哈希 必填
+#   name 文件名 必填
 # return
-#   EXISTS 说明该文件已经上传过了且合并成功了
+#   EXISTS 说明该文件已经上传过了且合并成功了 不需要执行后面的逻辑了
+#   get_path_chunks(path) 说明该文件有0个或多个切片 前端需要上传未上传的切片
 def get_chunks_info(request):
     if request.method != 'GET':
         return HTTP_400
@@ -71,9 +70,9 @@ def get_chunks_info(request):
 
 # accept_file_chunk 接受文件切片
 # params
-#   file_chunk  文件切片
-#   chunk_index 切片下标
-#   file_hash 文件哈希
+#   file_chunk  文件切片  必填
+#   chunk_index 切片下标  必填
+#   file_hash 文件哈希    必填
 def accept_file_chunk(request):
     if request.method != 'POST':
         return HTTP_400
@@ -89,7 +88,7 @@ def accept_file_chunk(request):
 
 # save_chunk 存储切片
 # params
-#   chunk  文件切片
+#   chunk 文件切片
 #   index 切片下标
 #   hash_ 文件哈希
 def save_chunk(chunk, index, hash_):
@@ -102,17 +101,24 @@ def save_chunk(chunk, index, hash_):
 
 # merge_file_chunk 合并文件夹里的切片
 # params
-#   file_hash 文件哈希
-#   name 文件名
+#   file_hash 文件哈希 必填
+#   name 文件名 必填
+#   chunk_number 切片数量 必填
 def merge_file_chunk(request):
     if request.method != 'GET':
         return HTTP_400
     file_hash = request.GET.get('file_hash')
     name = request.GET.get('name')
+    chunk_number = request.GET.get('chunk_number')
     path = FILE_PATH + '/' + file_hash
     if not is_path_exists(path):
         return HTTP_400
     chunk_index_list = get_path_chunks(path)
+    if int(chunk_number) != len(chunk_index_list):
+        return JsonResponse({
+            'code': 401,
+            'msg': '合并失败'
+          }, status=401)
     chunk_list = []
     index = 0
     while index < len(chunk_index_list):
